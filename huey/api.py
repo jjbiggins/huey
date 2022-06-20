@@ -92,9 +92,11 @@ class Huey(object):
                           '"immediate" instead', DeprecationWarning)
             immediate = always_eager
 
-        invalid = [p for p in self._deprecated_params
-                   if storage_kwargs.pop(p, None) is not None]
-        if invalid:
+        if invalid := [
+            p
+            for p in self._deprecated_params
+            if storage_kwargs.pop(p, None) is not None
+        ]:
             warnings.warn('the following Huey initialization arguments are no '
                           'longer supported: %s' % ', '.join(invalid),
                           DeprecationWarning)
@@ -204,10 +206,7 @@ class Huey(object):
             @wraps(fn)
             def inner(*a, **k):
                 with obj as ctx:
-                    if as_argument:
-                        return fn(ctx, *a, **k)
-                    else:
-                        return fn(*a, **k)
+                    return fn(ctx, *a, **k) if as_argument else fn(*a, **k)
             return inner
         def task_decorator(func):
             return self.task(**kwargs)(context_decorator(func))
@@ -302,15 +301,14 @@ class Huey(object):
         if not self.results:
             return
 
-        if task.on_complete:
-            current = task
-            results = []
-            while current is not None:
-                results.append(Result(self, current))
-                current = current.on_complete
-            return ResultGroup(results)
-        else:
+        if not task.on_complete:
             return Result(self, task)
+        current = task
+        results = []
+        while current is not None:
+            results.append(Result(self, current))
+            current = current.on_complete
+        return ResultGroup(results)
 
     def dequeue(self):
         data = self.storage.dequeue()
@@ -328,10 +326,7 @@ class Huey(object):
         return self.storage.put_if_empty(key, self.serializer.serialize(data))
 
     def get_raw(self, key, peek=False):
-        if peek:
-            return self.storage.peek_data(key)
-        else:
-            return self.storage.pop_data(key)
+        return self.storage.peek_data(key) if peek else self.storage.pop_data(key)
 
     def get(self, key, peek=False):
         data = self.get_raw(key, peek)
@@ -406,7 +401,7 @@ class Huey(object):
         except Exception as exc:
             logger.exception('Unhandled exception in task %s.', task.id)
             exception = exc
-            self._emit(S.SIGNAL_ERROR, task, exc)
+            self._emit(S.SIGNAL_ERROR, task, exception)
         else:
             logger.info('%s executed in %0.3fs', task, duration)
 
@@ -614,18 +609,17 @@ class Huey(object):
         return TaskLock(self, lock_name).is_locked()
 
     def flush_locks(self, *names):
-        flushed = set()
         locks = self._locks
         if names:
             lock_template = '%s.lock.%%s' % self.name
             named_locks = (lock_template % name.strip() for name in names)
             locks = itertools.chain(locks, named_locks)
 
-        for lock_key in locks:
-            if self.delete(lock_key):
-                flushed.add(lock_key.split('.lock.', 1)[-1])
-
-        return flushed
+        return {
+            lock_key.split('.lock.', 1)[-1]
+            for lock_key in locks
+            if self.delete(lock_key)
+        }
 
     def result(self, id, blocking=False, timeout=None, backoff=1.15,
                max_delay=1.0, revoke_on_timeout=False, preserve=False):
@@ -652,7 +646,7 @@ class Task(object):
         self.args = () if args is None else args
         self.kwargs = {} if kwargs is None else kwargs
         self.id = id or self.create_id()
-        self.revoke_id = 'r:%s' % self.id
+        self.revoke_id = f'r:{self.id}'
         self.eta = eta
         self.retries = retries if retries is not None else self.default_retries
         self.retry_delay = retry_delay if retry_delay is not None else \
@@ -670,22 +664,22 @@ class Task(object):
         return (self.args, self.kwargs)
 
     def __repr__(self):
-        rep = '%s.%s: %s' % (self.__module__, self.name, self.id)
+        rep = f'{self.__module__}.{self.name}: {self.id}'
         if self.eta:
-            rep += ' @%s' % self.eta
+            rep += f' @{self.eta}'
         if self.expires:
             if self.expires_resolved and self.expires != self.expires_resolved:
-                rep += ' exp=%s (%s)' % (self.expires, self.expires_resolved)
+                rep += f' exp={self.expires} ({self.expires_resolved})'
             else:
-                rep += ' exp=%s' % self.expires
+                rep += f' exp={self.expires}'
         if self.priority:
-            rep += ' p=%s' % self.priority
+            rep += f' p={self.priority}'
         if self.retries:
-            rep += ' %s retries' % self.retries
+            rep += f' {self.retries} retries'
         if self.on_complete:
-            rep += ' -> %s' % self.on_complete
+            rep += f' -> {self.on_complete}'
         if self.on_error:
-            rep += ', on error %s' % self.on_error
+            rep += f', on error {self.on_error}'
         return rep
 
     def __hash__(self):
@@ -742,13 +736,11 @@ class Task(object):
         raise NotImplementedError
 
     def __eq__(self, rhs):
-        if not isinstance(rhs, Task):
-            return False
-
         return (
-            self.id == rhs.id and
-            self.eta == rhs.eta and
-            type(self) == type(rhs))
+            (self.id == rhs.id and self.eta == rhs.eta and type(self) == type(rhs))
+            if isinstance(rhs, Task)
+            else False
+        )
 
 
 class PeriodicTask(Task):
@@ -864,7 +856,7 @@ class TaskLock(object):
     def __init__(self, huey, name):
         self._huey = huey
         self._name = name
-        self._key = '%s.lock.%s' % (self._huey.name, self._name)
+        self._key = f'{self._huey.name}.lock.{self._name}'
         self._huey._locks.add(self._key)
 
     def is_locked(self):
@@ -879,7 +871,7 @@ class TaskLock(object):
 
     def __enter__(self):
         if not self._huey.put_if_empty(self._key, '1'):
-            raise TaskLockedException('unable to set lock: %s' % self._name)
+            raise TaskLockedException(f'unable to set lock: {self._name}')
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._huey.delete(self._key)
@@ -917,7 +909,7 @@ class Result(object):
         self._result = EmptyData
 
     def __repr__(self):
-        return '<Result: task %s>' % self.id
+        return f'<Result: task {self.id}>'
 
     @property
     def id(self):
@@ -928,16 +920,14 @@ class Result(object):
 
     def _get(self, preserve=False):
         task_id = self.id
-        if self._result is EmptyData:
-            res = self.huey.get_raw(task_id, peek=preserve)
-
-            if res is not EmptyData:
-                self._result = self.huey.serializer.deserialize(res)
-                return self._result
-            else:
-                return res
-        else:
+        if self._result is not EmptyData:
             return self._result
+        res = self.huey.get_raw(task_id, peek=preserve)
+
+        if res is EmptyData:
+            return res
+        self._result = self.huey.serializer.deserialize(res)
+        return self._result
 
     def get_raw_result(self, blocking=False, timeout=None, backoff=1.15,
                        max_delay=1.0, revoke_on_timeout=False, preserve=False):
@@ -1099,11 +1089,10 @@ def crontab(minute='*', hour='*', day='*', month='*', day_of_week='*', strict=Fa
         # fix the weekday to be sunday=0
         w = (w + 1) % 7
 
-        for (date_piece, selection) in zip((m, d, w, H, M), cron_settings):
-            if date_piece not in selection:
-                return False
-
-        return True
+        return all(
+            date_piece in selection
+            for date_piece, selection in zip((m, d, w, H, M), cron_settings)
+        )
 
     return validate_date
 

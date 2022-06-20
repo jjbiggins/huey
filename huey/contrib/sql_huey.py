@@ -218,7 +218,7 @@ class SqlStorage(BaseStorage):
 
     def result_items(self):
         query = self.kv(self.KV.key, self.KV.value).tuples()
-        return dict((k, v) for k, v in query.iterator())
+        return dict(query.iterator())
 
     def flush_results(self):
         self.KV.delete().where(self.KV.queue == self.name).execute()

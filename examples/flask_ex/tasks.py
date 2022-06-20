@@ -7,7 +7,7 @@ from app import huey
 def example_task(n):
     # Example task -- prints the following line to the stdout of the
     # consumer process and returns the argument that was passed in (n).
-    print('-- RUNNING EXAMPLE TASK: CALLED WITH n=%s --' % n)
+    print(f'-- RUNNING EXAMPLE TASK: CALLED WITH n={n} --')
     return n
 
 

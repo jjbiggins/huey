@@ -28,8 +28,8 @@ class KyotoTycoonStorage(BaseStorage):
         self._db = db
         self._queue_db = queue_db if queue_db is not None else db
 
-        self.qname = self.name + '.q'
-        self.sname = self.name + '.s'
+        self.qname = f'{self.name}.q'
+        self.sname = f'{self.name}.s'
 
         self.q = self.kt.Queue(self.qname, self._queue_db)
         self.s = self.kt.Schedule(self.sname, self._queue_db)
@@ -38,10 +38,7 @@ class KyotoTycoonStorage(BaseStorage):
         self.q.add(data, priority)
 
     def dequeue(self):
-        if self.blocking:
-            return self.q.bpop(timeout=30)
-        else:
-            return self.q.pop()
+        return self.q.bpop(timeout=30) if self.blocking else self.q.pop()
 
     def queue_size(self):
         return len(self.q)
@@ -71,7 +68,7 @@ class KyotoTycoonStorage(BaseStorage):
         return self.s.clear()
 
     def prefix_key(self, key):
-        return '%s.%s' % (self.qname, decode(key))
+        return f'{self.qname}.{decode(key)}'
 
     def put_data(self, key, value, is_result=False):
         xt = self.expire_time if is_result else None

@@ -38,7 +38,7 @@ def load_class(s):
 
 def reraise_as(new_exc_class):
     exc_class, exc, tb = sys.exc_info()
-    raise new_exc_class('%s: %s' % (exc_class.__name__, exc))
+    raise new_exc_class(f'{exc_class.__name__}: {exc}')
 
 
 def is_naive(dt):
@@ -94,10 +94,7 @@ def normalize_time(eta=None, delay=None, utc=True):
     elif eta:
         has_tz = not is_naive(eta)
         if utc:
-            if not has_tz:
-                eta = local_to_utc(eta)
-            else:
-                eta = aware_to_utc(eta)
+            eta = aware_to_utc(eta) if has_tz else local_to_utc(eta)
         elif has_tz:
             # Convert TZ-aware into naive localtime.
             eta = make_naive(eta)
@@ -169,7 +166,4 @@ class FileLock(object):
         self.release()
 
 
-if sys.version_info[0] < 3:
-    time_clock = time.time
-else:
-    time_clock = time.monotonic
+time_clock = time.time if sys.version_info[0] < 3 else time.monotonic

@@ -22,7 +22,7 @@ class TestError(Exception):
     def __init__(self, m=None):
         self._m = m
     def __repr__(self):
-        return 'TestError(%s)' % self._m
+        return f'TestError({self._m})'
 
 class ExcCounter(Exception):
     counter = 0
@@ -30,7 +30,7 @@ class ExcCounter(Exception):
         ExcCounter.counter += 1
         self._v = ExcCounter.counter
     def __repr__(self):
-        return 'ExcCounter(%s)' % self._v
+        return f'ExcCounter({self._v})'
 
 
 
@@ -67,10 +67,7 @@ class TestQueue(BaseTestCase):
     def test_result_store(self):
         @self.huey.task()
         def task_a(n):
-            if n == 2:
-                return None
-            else:
-                return n - 1
+            return None if n == 2 else n - 1
 
         r1, r2, r3 = [task_a(i) for i in (1, 2, 3)]
         for _ in range(3):
@@ -1030,8 +1027,8 @@ class TestDecorators(BaseTestCase):
 
         @self.huey.task()
         def make_ptask(every_n):
-            name = 'ptask_%s' % every_n
-            sched = crontab('*/%s' % every_n)
+            name = f'ptask_{every_n}'
+            sched = crontab(f'*/{every_n}')
             self.huey.periodic_task(sched, name=name)(ptask)
 
         # Create two tasks dynamically.
@@ -1175,11 +1172,11 @@ class TestTaskChaining(BaseTestCase):
     def test_pipeline_dict(self):
         @self.huey.task()
         def stateful(v1=None, v2=None, v3=None):
-            state = {
+            return {
                 'v1': v1 + 1 if v1 is not None else 0,
                 'v2': v2 + 2 if v2 is not None else 0,
-                'v3': v3 + 3 if v3 is not None else 0}
-            return state
+                'v3': v3 + 3 if v3 is not None else 0,
+            }
 
         pipe = stateful.s().then(stateful).then(stateful)
         self.assertPipe(pipe, [
@@ -1381,16 +1378,16 @@ class TestHueyAPIs(BaseTestCase):
             with self.huey.lock_task('lock2'):
                 flushed = self.huey.flush_locks()
 
-        self.assertEqual(flushed, set(['lock1', 'lock2']))
+        self.assertEqual(flushed, {'lock1', 'lock2'})
         self.assertEqual(self.huey.flush_locks(), set())
 
     def test_flush_named_locks(self):
-        self.huey.put_if_empty('%s.lock.lock1' % self.huey.name, '1')
-        self.huey.put_if_empty('%s.lock.lock2' % self.huey.name, '1')
+        self.huey.put_if_empty(f'{self.huey.name}.lock.lock1', '1')
+        self.huey.put_if_empty(f'{self.huey.name}.lock.lock2', '1')
         with self.huey.lock_task('lock3'):
             flushed = self.huey.flush_locks('lock1', 'lock2', 'lockx')
 
-        self.assertEqual(flushed, set(['lock1', 'lock2', 'lock3']))
+        self.assertEqual(flushed, {'lock1', 'lock2', 'lock3'})
         self.assertEqual(self.huey.flush_locks(), set())
 
     def test_serialize_deserialize(self):

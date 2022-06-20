@@ -22,7 +22,7 @@ def load_huey(path):
         if cur_dir not in sys.path:
             sys.path.insert(0, cur_dir)
             return load_huey(path)
-        err('Error importing %s' % path)
+        err(f'Error importing {path}')
         raise
 
 

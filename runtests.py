@@ -18,8 +18,7 @@ def collect_tests(args=None):
         suite.addTest(module_suite)
     else:
         tmpl = 'huey.tests.test_%s'
-        cleaned = [tmpl % arg if not arg.startswith('test') else arg
-                   for arg in args]
+        cleaned = [arg if arg.startswith('test') else tmpl % arg for arg in args]
         user_suite = unittest.TestLoader().loadTestsFromNames(cleaned)
         suite.addTest(user_suite)
     return suite

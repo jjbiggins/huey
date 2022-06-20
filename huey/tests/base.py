@@ -38,7 +38,7 @@ class BaseTestCase(unittest.TestCase):
             fn()
         except exc_type as exc_val:
             return exc_val
-        raise AssertionError('trap_exception() failed to catch %s' % exc_type)
+        raise AssertionError(f'trap_exception() failed to catch {exc_type}')
 
     def consumer(self, **params):
         params.setdefault('initial_delay', 0.001)

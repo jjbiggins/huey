@@ -95,12 +95,12 @@ class TestPriority(BaseTestCase):
             self.assertTrue(self.execute_next() is None)
 
         # Priorities are preserved when added to the schedule.
-        priorities = dict((t.id, t.priority) for t in self.huey.scheduled())
+        priorities = {t.id: t.priority for t in self.huey.scheduled()}
         self.assertEqual(priorities, expected)
 
         # Priorities are preserved when read from the schedule.
         items = self.huey.read_schedule(timestamp=eta)
-        priorities = dict((t.id, t.priority) for t in items)
+        priorities = {t.id: t.priority for t in items}
         self.assertEqual(priorities, expected)
 
     def test_periodic_priority(self):

@@ -45,7 +45,7 @@ if gzip is not None:
 
 if sys.version_info[0] == 2:
     def is_compressed(data):
-        return data and (data[0] == b'\x1f' or data[0] == b'\x78')
+        return data and data[0] in [b'\x1f', b'\x78']
 else:
     def is_compressed(data):
         return data and data[0] == 0x1f or data[0] == 0x78
