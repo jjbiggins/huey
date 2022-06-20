@@ -80,7 +80,7 @@ class MiniHuey(object):
         self._run_t = None
 
     def _enqueue(self, fn, args=None, kwargs=None, async_result=None):
-        logger.info('enqueueing %s' % fn.__name__)
+        logger.info(f'enqueueing {fn.__name__}')
         self._pool.spawn(self._execute, fn, args, kwargs, async_result)
 
     def _execute(self, fn, args, kwargs, async_result):
@@ -90,7 +90,7 @@ class MiniHuey(object):
         try:
             ret = fn(*args, **kwargs)
         except Exception as exc:
-            logger.exception('task %s failed' % fn.__name__)
+            logger.exception(f'task {fn.__name__} failed')
             async_result.set_exception(exc)
             raise
         else:
@@ -124,7 +124,6 @@ class MiniHuey(object):
 
             # Wait for most of the remained of the time remaining.
             remaining = self._interval - (time_clock() - start)
-            if remaining > 0:
-                if not self._shutdown.wait(remaining * 0.9):
-                    gevent.sleep(self._interval - (time_clock() - start))
+            if remaining > 0 and not self._shutdown.wait(remaining * 0.9):
+                gevent.sleep(self._interval - (time_clock() - start))
         logger.info('exiting task runner')

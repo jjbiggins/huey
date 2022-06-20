@@ -26,9 +26,9 @@ def mul(a, b):
 
 @huey.task()
 def slow(n):
-    tprint('going to sleep for %s seconds' % n)
+    tprint(f'going to sleep for {n} seconds')
     time.sleep(n)
-    tprint('finished sleeping for %s seconds' % n)
+    tprint(f'finished sleeping for {n} seconds')
     return n
 
 
@@ -80,18 +80,18 @@ def every_five_mins():
 def startup_hook():
     pid = os.getpid()
     tid = threading.get_ident()
-    tprint('process %s, thread %s - startup hook' % (pid, tid))
+    tprint(f'process {pid}, thread {tid} - startup hook')
 
 
 @huey.on_shutdown()
 def shutdown_hook():
     pid = os.getpid()
     tid = threading.get_ident()
-    tprint('process %s, thread %s - shutdown hook' % (pid, tid))
+    tprint(f'process {pid}, thread {tid} - shutdown hook')
 
 
 # Example of using a signal.
 
 @huey.signal(SIGNAL_COMPLETE)
 def on_complete(signal, task, exc=None):
-    tprint('received signal [%s] for task [%s]' % (signal, task))
+    tprint(f'received signal [{signal}] for task [{task}]')

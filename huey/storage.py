@@ -375,7 +375,7 @@ class RedisStorage(BaseStorage):
             if p in connection_params and connection_params[p] is None:
                 del connection_params[p]
 
-        if sum(1 for p in (url, connection_pool, connection_params) if p) > 1:
+        if sum(bool(p) for p in (url, connection_pool, connection_params)) > 1:
             raise ConfigurationError(
                 'The connection configuration is over-determined. '
                 'Please specify only one of the following: '
@@ -392,10 +392,10 @@ class RedisStorage(BaseStorage):
         self._pop = self.conn.register_script(SCHEDULE_POP_LUA)
 
         self.name = self.clean_name(name)
-        self.queue_key = 'huey.redis.%s' % self.name
-        self.schedule_key = 'huey.schedule.%s' % self.name
-        self.result_key = 'huey.results.%s' % self.name
-        self.error_key = 'huey.errors.%s' % self.name
+        self.queue_key = f'huey.redis.{self.name}'
+        self.schedule_key = f'huey.schedule.{self.name}'
+        self.result_key = f'huey.results.{self.name}'
+        self.error_key = f'huey.errors.{self.name}'
 
         if client_name is not None:
             self.conn.client_setname(client_name)
@@ -416,17 +416,16 @@ class RedisStorage(BaseStorage):
         self.conn.lpush(self.queue_key, data)
 
     def dequeue(self):
-        if self.blocking:
-            try:
-                return self.conn.brpop(
-                    self.queue_key,
-                    timeout=self.read_timeout)[1]
-            except (ConnectionError, TypeError, IndexError):
-                # Unfortunately, there is no way to differentiate a socket
-                # timing out and a host being unreachable.
-                return None
-        else:
+        if not self.blocking:
             return self.conn.rpop(self.queue_key)
+        try:
+            return self.conn.brpop(
+                self.queue_key,
+                timeout=self.read_timeout)[1]
+        except (ConnectionError, TypeError, IndexError):
+            # Unfortunately, there is no way to differentiate a socket
+            # timing out and a host being unreachable.
+            return None
 
     def queue_size(self):
         return self.conn.llen(self.queue_key)
@@ -466,7 +465,7 @@ class RedisStorage(BaseStorage):
         pipe.hexists(self.result_key, key)
         pipe.hget(self.result_key, key)
         exists, val = pipe.execute()
-        return EmptyData if not exists else val
+        return val if exists else EmptyData
 
     def pop_data(self, key):
         pipe = self.conn.pipeline()
@@ -474,7 +473,7 @@ class RedisStorage(BaseStorage):
         pipe.hget(self.result_key, key)
         pipe.hdel(self.result_key, key)
         exists, val, n = pipe.execute()
-        return EmptyData if not exists else val
+        return val if exists else EmptyData
 
     def has_data_for_key(self, key):
         return self.conn.hexists(self.result_key, key)
@@ -518,7 +517,7 @@ class RedisExpireStorage(RedisStorage):
         pipe.exists(self.result_key(key))
         pipe.get(self.result_key(key))
         exists, val = pipe.execute()
-        return EmptyData if not exists else val
+        return val if exists else EmptyData
 
     # Here we explicitly prevent result items from being removed by using the
     # same implementation for "pop" (get and delete) as we do for "peek"
@@ -550,8 +549,7 @@ class RedisExpireStorage(RedisStorage):
         return accum
 
     def flush_results(self):
-        keys = list(self._result_keys())
-        if keys:
+        if keys := list(self._result_keys()):
             self.conn.delete(*keys)
 
 
@@ -581,11 +579,8 @@ class RedisPriorityQueue(object):
                 return
             else:
                 return res[8:]
-        else:
-            # ZPOPMIN returns a list of (data, score) 2-tuples.
-            items = self.conn.zpopmin(self.queue_key, count=1)
-            if items:
-                return items[0][0][8:]  # [(prefix+data, score)].
+        elif items := self.conn.zpopmin(self.queue_key, count=1):
+            return items[0][0][8:]  # [(prefix+data, score)].
 
     def queue_size(self):
         return self.conn.zcard(self.queue_key)
@@ -612,9 +607,8 @@ class _ConnectionState(object):
         self.conn = conn
         self.closed = False
 class _ConnectionLocal(_ConnectionState, threading.local): pass
-
 # Python 2.x may return <buffer> object for BLOB columns.
-to_bytes = lambda b: bytes(b) if not isinstance(b, bytes) else b
+to_bytes = lambda b: b if isinstance(b, bytes) else bytes(b)
 to_blob = lambda b: sqlite3.Binary(b)
 
 
@@ -718,8 +712,8 @@ class SqliteStorage(BaseSqlStorage):
         conn.isolation_level = None  # Autocommit mode.
         conn.execute('pragma journal_mode="%s"' % self._journal_mode)
         if self._cache_mb:
-            conn.execute('pragma cache_size=%s' % (-1000 * self._cache_mb))
-        conn.execute('pragma synchronous=%s' % (2 if self._fsync else 0))
+            conn.execute(f'pragma cache_size={-1000 * self._cache_mb}')
+        conn.execute(f'pragma synchronous={2 if self._fsync else 0}')
         return conn
 
     def enqueue(self, data, priority=None):
@@ -769,8 +763,7 @@ class SqliteStorage(BaseSqlStorage):
                 data.append(to_bytes(task_data))
             if id_list:
                 plist = ','.join('?' * len(id_list))
-                curs.execute('delete from schedule where id IN (%s)' % plist,
-                             id_list)
+                curs.execute(f'delete from schedule where id IN ({plist})', id_list)
             return data
 
     def schedule_size(self):
@@ -832,7 +825,7 @@ class SqliteStorage(BaseSqlStorage):
     def result_items(self):
         res = self.sql('select key, value from kv where queue=?', (self.name,),
                        results=True)
-        return dict((k, to_bytes(v)) for k, v in res)
+        return {k: to_bytes(v) for k, v in res}
 
     def flush_results(self):
         self.sql('delete from kv where queue=?', (self.name,), True)
@@ -856,7 +849,7 @@ class FileStorage(BaseStorage):
         if os.path.exists(self.path) and not os.path.isdir(self.path):
             raise ValueError('path "%s" is not a directory' % path)
         if levels < 0 or levels > 4:
-            raise ValueError('%s levels must be between 0 and 4' % self)
+            raise ValueError(f'{self} levels must be between 0 and 4')
 
         self.queue_path = os.path.join(self.path, 'queue')
         self.schedule_path = os.path.join(self.path, 'schedule')
@@ -878,7 +871,7 @@ class FileStorage(BaseStorage):
         priority = priority or 0
         if priority < 0: raise ValueError('priority must be a positive number')
         if priority > self.MAX_PRIORITY:
-            raise ValueError('priority must be <= %s' % self.MAX_PRIORITY)
+            raise ValueError(f'priority must be <= {self.MAX_PRIORITY}')
 
         with self.lock:
             if not os.path.exists(self.queue_path):
@@ -900,9 +893,11 @@ class FileStorage(BaseStorage):
                 fh.write(data)
 
     def _get_sorted_filenames(self, path):
-        if not os.path.exists(path):
-            return ()
-        return [f for f in sorted(os.listdir(path)) if not f.endswith('.tmp')]
+        return (
+            [f for f in sorted(os.listdir(path)) if not f.endswith('.tmp')]
+            if os.path.exists(path)
+            else ()
+        )
 
     def dequeue(self):
         with self.lock:
@@ -911,7 +906,7 @@ class FileStorage(BaseStorage):
                 return
 
             filename = os.path.join(self.queue_path, filenames[0])
-            tmp_dest = filename + '.tmp'
+            tmp_dest = f'{filename}.tmp'
             os.rename(filename, tmp_dest)
 
             with open(tmp_dest, 'rb') as fh:
@@ -960,7 +955,7 @@ class FileStorage(BaseStorage):
                 if basename[:12] > prefix:
                     break
                 filename = os.path.join(self.schedule_path, basename)
-                new_filename = filename + '.tmp'
+                new_filename = f'{filename}.tmp'
                 os.rename(filename, new_filename)
                 accum.append(new_filename)
 

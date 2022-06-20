@@ -74,9 +74,9 @@ class TestCrontab(unittest.TestCase):
             self.assertEqual(res, x in valids)
 
     def test_crontab_sunday(self):
+        valid = {2, 9, 16, 23, 30}
         for dow in ('0', '7'):
             validate = crontab(day_of_week=dow, hour='0', minute='0')
-            valid = set((2, 9, 16, 23, 30))
             for x in range(1, 32):
                 if x in valid:
                     self.assertTrue(validate(datetime.datetime(2011, 1, x)))

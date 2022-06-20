@@ -14,7 +14,7 @@ class RedisSemaphore(object):
         if not isinstance(huey, RedisHuey):
             raise ValueError('Semaphore is only supported for Redis.')
         self.huey = huey
-        self.key = '%s.lock.%s' % (huey.name, name)
+        self.key = f'{huey.name}.lock.{name}'
         self.value = value
         self.timeout = timeout or 86400  # Set a max age for lock holders.
 
@@ -59,8 +59,7 @@ def lock_task_semaphore(huey, lock_name, value=1, timeout=None):
         def inner(*args, **kwargs):
             tid = sem.acquire()
             if tid is None:
-                raise TaskLockedException('unable to acquire lock: %s' %
-                                          lock_name)
+                raise TaskLockedException(f'unable to acquire lock: {lock_name}')
             try:
                 return fn(*args, **kwargs)
             finally:

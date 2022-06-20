@@ -33,7 +33,7 @@ def option(name, **options):
         opt_name = name.replace('_', '-')
         letter = name[0]
         options.setdefault('dest', name)
-    return ('-' + letter, '--' + opt_name, options)
+    return f'-{letter}', f'--{opt_name}', options
 
 
 class OptionParserHandler(object):
@@ -124,7 +124,7 @@ class OptionParserHandler(object):
 class ConsumerConfig(namedtuple('_ConsumerConfig', config_keys)):
     def __new__(cls, **kwargs):
         config = dict(config_defaults)
-        config.update(kwargs)
+        config |= kwargs
         args = [config[key] for key in config_keys]
         return super(ConsumerConfig, cls).__new__(cls, *args)
 
@@ -145,18 +145,13 @@ class ConsumerConfig(namedtuple('_ConsumerConfig', config_keys)):
         return logging.DEBUG if self.verbose else logging.WARNING
 
     def setup_logger(self, logger=None):
-        if self.worker_type == 'process':
-            worker = '%(process)d'
-        else:
-            worker = '%(threadName)s'
-
         if self.simple_log:
             datefmt = '%H:%M:%S'
             logformat = '%(asctime)s %(message)s'
         else:
             datefmt = None  # Use default
-            logformat = ('[%(asctime)s] %(levelname)s:%(name)s:' + worker +
-                         ':%(message)s')
+            worker = '%(process)d' if self.worker_type == 'process' else '%(threadName)s'
+            logformat = (f'[%(asctime)s] %(levelname)s:%(name)s:{worker}' + ':%(message)s')
         if logger is None:
             logger = logging.getLogger()
 
@@ -171,5 +166,8 @@ class ConsumerConfig(namedtuple('_ConsumerConfig', config_keys)):
 
     @property
     def values(self):
-        return dict((key, getattr(self, key)) for key in config_keys
-                    if key not in ('logfile', 'verbose', 'simple_log'))
+        return {
+            key: getattr(self, key)
+            for key in config_keys
+            if key not in ('logfile', 'verbose', 'simple_log')
+        }

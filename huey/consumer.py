@@ -32,7 +32,7 @@ class BaseProcess(object):
         self._logger = self.create_logger()
 
     def create_logger(self):
-        return logging.getLogger('huey.consumer.%s' % self.process_name)
+        return logging.getLogger(f'huey.consumer.{self.process_name}')
 
     def initialize(self):
         pass
@@ -317,15 +317,12 @@ class Consumer(object):
 
     def flush_locks(self, *names):
         self._logger.debug('Flushing locks before starting up.')
-        flushed = self.huey.flush_locks(*names)
-        if flushed:
-            self._logger.warning('Found stale locks: %s' % (
-                ', '.join(key for key in flushed)))
+        if flushed := self.huey.flush_locks(*names):
+            self._logger.warning(('Found stale locks: %s' % ', '.join(flushed)))
 
     def get_environment(self, worker_type):
         if worker_type not in WORKER_TO_ENVIRONMENT:
-            raise ValueError('worker_type must be one of %s.' %
-                             ', '.join(WORKER_TYPES))
+            raise ValueError(f"worker_type must be one of {', '.join(WORKER_TYPES)}.")
         return WORKER_TO_ENVIRONMENT[worker_type]()
 
     def _create_worker(self):
@@ -356,8 +353,6 @@ class Consumer(object):
                     process.loop()
             except KeyboardInterrupt:
                 pass
-            except:
-                self._logger.exception('Process %s died!', name)
             finally:
                 process.shutdown()
         return self.environment.create_process(_run, name)
@@ -382,9 +377,7 @@ class Consumer(object):
                           'enabled' if self.periodic else 'disabled')
 
         msg = ['The following commands are available:']
-        for command in self.huey._registry._registry:
-            msg.append('+ %s' % command)
-
+        msg.extend(f'+ {command}' for command in self.huey._registry._registry)
         self._logger.info('\n'.join(msg))
 
         # Start the scheduler and workers.
@@ -430,9 +423,6 @@ class Consumer(object):
             except KeyboardInterrupt:
                 self._logger.info('Received SIGINT')
                 self.stop(graceful=True)
-            except:
-                self._logger.exception('Error in consumer.')
-                self.stop()
             else:
                 if self._received_signal:
                     self.stop(graceful=self._graceful)

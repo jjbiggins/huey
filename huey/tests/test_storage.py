@@ -134,7 +134,7 @@ class StorageTests(object):
 
         priorities = (1, None, 5, None, 3, None, 9, None, 7, 0)
         for i, priority in enumerate(priorities):
-            item = 'i%s-%s' % (i, priority)
+            item = f'i{i}-{priority}'
             self.s.enqueue(item.encode('utf8'), priority)
 
         expected = [b'i6-9', b'i8-7', b'i2-5', b'i4-3', b'i0-1',

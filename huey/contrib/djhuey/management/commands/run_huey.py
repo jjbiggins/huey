@@ -62,7 +62,7 @@ class Command(BaseCommand):
         consumer_options = {}
         try:
             if isinstance(settings.HUEY, dict):
-                consumer_options.update(settings.HUEY.get('consumer', {}))
+                consumer_options |= settings.HUEY.get('consumer', {})
         except AttributeError:
             pass
 

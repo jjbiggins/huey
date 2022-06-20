@@ -24,9 +24,9 @@ def mul(a, b):
 
 @db_task()  # Opens DB connection for duration of task.
 def slow(n):
-    tprint('going to sleep for %s seconds' % n)
+    tprint(f'going to sleep for {n} seconds')
     time.sleep(n)
-    tprint('finished sleeping for %s seconds' % n)
+    tprint(f'finished sleeping for {n} seconds')
     return n
 
 

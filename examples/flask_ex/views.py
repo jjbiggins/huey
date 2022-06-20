@@ -12,7 +12,7 @@ def home():
 
         # Enqueue our task, the consumer will pick it up and run it.
         example_task(n)
-        message = 'Enqueued example_task(%s) - see consumer output' % n
+        message = f'Enqueued example_task({n}) - see consumer output'
     else:
         message = None
 
